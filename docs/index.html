@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>Color Gamut</title>
+  <title>Wide Color Gamut</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <style>
@@ -24,6 +24,7 @@
       overflow: hidden;
     }
 
+    /* 背景柔光 */
     .hero::before {
       content: "";
       position: absolute;
@@ -31,13 +32,13 @@
       height: 700px;
       background: radial-gradient(
         circle,
-        rgba(255, 120, 120, 0.18),
-        rgba(120, 160, 255, 0.12),
+        rgba(255, 140, 140, 0.18),
+        rgba(140, 180, 255, 0.14),
         transparent 65%
       );
-      top: -200px;
-      right: -200px;
-      filter: blur(40px);
+      top: -220px;
+      right: -220px;
+      filter: blur(50px);
       z-index: 0;
     }
 
@@ -57,7 +58,6 @@
       font-size: 18px;
       line-height: 1.6;
       color: #555;
-      margin-bottom: 32px;
     }
 
     .visual {
@@ -65,23 +65,25 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      z-index: 1;
       position: relative;
+      perspective: 900px;
+      z-index: 1;
     }
 
     canvas {
       width: 420px;
       height: 420px;
-      transition: transform 0.2s ease-out;
+      transform-style: preserve-3d;
+      will-change: transform, filter;
     }
 
     .tooltip {
       position: absolute;
       padding: 6px 10px;
       font-size: 12px;
-      background: rgba(255,255,255,0.9);
+      background: rgba(255,255,255,0.92);
       border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.1);
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.15s ease;
@@ -105,7 +107,7 @@
     <h1>Wide Color Gamut</h1>
     <p>
       More accurate color reproduction across devices.
-      Designed for clarity, consistency, and visual impact.
+      Designed for clarity, depth, and visual impact.
     </p>
   </div>
 
@@ -126,6 +128,7 @@
   const cy = H / 2;
   const radius = W * 0.42;
 
+  /* ====== 繪製色域 ====== */
   function drawColorWheel() {
     ctx.clearRect(0, 0, W, H);
 
@@ -134,11 +137,11 @@
       const end = a * Math.PI / 180;
 
       const grad = ctx.createRadialGradient(
-        cx, cy, radius * 0.2,
+        cx, cy, radius * 0.25,
         cx, cy, radius
       );
 
-      grad.addColorStop(0, `hsl(${a}, 25%, 94%)`);
+      grad.addColorStop(0, `hsl(${a}, 20%, 94%)`);
       grad.addColorStop(1, `hsl(${a}, 80%, 60%)`);
 
       ctx.beginPath();
@@ -151,6 +154,7 @@
 
     drawSRGB();
     drawOutline();
+    drawHighlight();
   }
 
   function drawSRGB() {
@@ -189,7 +193,25 @@
     ctx.stroke();
   }
 
-  // xy → RGB（展示用）
+  function drawHighlight() {
+    const grad = ctx.createRadialGradient(
+      cx - radius * 0.35,
+      cy - radius * 0.35,
+      radius * 0.2,
+      cx,
+      cy,
+      radius
+    );
+    grad.addColorStop(0, "rgba(255,255,255,0.35)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  /* ====== xy → RGB（展示用） ====== */
   function xyToRgb(x, y) {
     const z = 1 - x - y;
     let r =  3.2406*x -1.5372*y -0.4986*z;
@@ -207,7 +229,10 @@
     };
   }
 
-  // 互動：旋轉 + RGB tooltip
+  /* ====== 立體慣性控制 ====== */
+  let targetRX = 0, targetRY = 0;
+  let currentRX = 0, currentRY = 0;
+
   canvas.addEventListener("mousemove", e => {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -215,23 +240,16 @@
 
     const dx = x - rect.width / 2;
     const dy = y - rect.height / 2;
-    const dist = Math.sqrt(dx*dx + dy*dy);
 
-    // 微旋轉
-    const rotateX = (-dy / rect.height) * 6;
-    const rotateY = (dx / rect.width) * 6;
-    canvas.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+    targetRX = (-dy / rect.height) * 8;
+    targetRY = (dx / rect.width) * 8;
 
-    // 在圓內才顯示 RGB
+    const dist = Math.hypot(dx, dy);
     if (dist < rect.width * 0.42) {
-      const cxNorm = (x / rect.width);
-      const cyNorm = 1 - (y / rect.height);
-
-      const rgb = xyToRgb(cxNorm, cyNorm);
-
+      const rgb = xyToRgb(x / rect.width, 1 - y / rect.height);
+      tooltip.textContent = `RGB(${rgb.r}, ${rgb.g}, ${rgb.b})`;
       tooltip.style.left = x + 16 + "px";
       tooltip.style.top = y + 16 + "px";
-      tooltip.textContent = `RGB(${rgb.r}, ${rgb.g}, ${rgb.b})`;
       tooltip.style.opacity = 1;
     } else {
       tooltip.style.opacity = 0;
@@ -239,11 +257,29 @@
   });
 
   canvas.addEventListener("mouseleave", () => {
-    canvas.style.transform = "rotateX(0deg) rotateY(0deg)";
+    targetRX = 0;
+    targetRY = 0;
     tooltip.style.opacity = 0;
   });
 
+  function animate() {
+    currentRX += (targetRX - currentRX) * 0.08;
+    currentRY += (targetRY - currentRY) * 0.08;
+
+    const shadowX = currentRY * -2;
+    const shadowY = currentRX * 2;
+
+    canvas.style.transform =
+      `rotateX(${currentRX}deg) rotateY(${currentRY}deg) scale(1.03)`;
+
+    canvas.style.filter =
+      `drop-shadow(${shadowX}px ${shadowY}px 40px rgba(0,0,0,0.12))`;
+
+    requestAnimationFrame(animate);
+  }
+
   drawColorWheel();
+  animate();
 </script>
 
 </body>
