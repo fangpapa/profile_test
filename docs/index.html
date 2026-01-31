@@ -1,160 +1,99 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>井字遊戲</title>
+  <meta charset="UTF-8" />
+  <title>Color Gamut</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f5f7fa;
+      margin: 0;
+      background: #ffffff;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
     }
 
-    .game {
-      background: #fff;
-      padding: 20px 30px 30px;
-      border-radius: 12px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-      text-align: center;
-    }
-
-    h1 {
-      margin-bottom: 10px;
-    }
-
-    .status {
-      margin: 15px 0;
-      font-size: 18px;
-      font-weight: bold;
-    }
-
-    .board {
-      display: grid;
-      grid-template-columns: repeat(3, 100px);
-      grid-template-rows: repeat(3, 100px);
-      gap: 8px;
-      justify-content: center;
-    }
-
-    .cell {
-      background: #e9ecf1;
-      font-size: 48px;
-      font-weight: bold;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 8px;
-      transition: background 0.2s;
-    }
-
-    .cell:hover {
-      background: #dfe3ea;
-    }
-
-    .cell.disabled {
-      cursor: default;
-    }
-
-    button {
-      margin-top: 20px;
-      padding: 10px 18px;
-      font-size: 16px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      background: #4f46e5;
-      color: #fff;
-    }
-
-    button:hover {
-      background: #4338ca;
+    canvas {
+      width: 420px;
+      height: 420px;
     }
   </style>
 </head>
 <body>
+  <canvas id="gamut" width="420" height="420"></canvas>
 
-<div class="game">
-  <h1>井字遊戲</h1>
-  <div class="status" id="status">目前玩家：X</div>
+  <script>
+    const canvas = document.getElementById("gamut");
+    const ctx = canvas.getContext("2d");
 
-  <div class="board" id="board">
-    <div class="cell"></div>
-    <div class="cell"></div>
-    <div class="cell"></div>
-    <div class="cell"></div>
-    <div class="cell"></div>
-    <div class="cell"></div>
-    <div class="cell"></div>
-    <div class="cell"></div>
-    <div class="cell"></div>
-  </div>
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+    const radius = W * 0.42;
 
-  <button onclick="resetGame()">重新開始</button>
-</div>
+    // 畫圓形色彩盤（好看版本）
+    function drawColorWheel() {
+      for (let angle = 0; angle < 360; angle += 1) {
+        const start = (angle - 1) * Math.PI / 180;
+        const end   = angle * Math.PI / 180;
 
-<script>
-  const cells = document.querySelectorAll('.cell');
-  const statusText = document.getElementById('status');
+        const grad = ctx.createRadialGradient(cx, cy, radius * 0.15, cx, cy, radius);
+        grad.addColorStop(0, "hsl(" + angle + ", 20%, 92%)");
+        grad.addColorStop(1, "hsl(" + angle + ", 85%, 60%)");
 
-  let currentPlayer = 'X';
-  let gameActive = true;
-  let board = Array(9).fill('');
-
-  const winConditions = [
-    [0,1,2], [3,4,5], [6,7,8],
-    [0,3,6], [1,4,7], [2,5,8],
-    [0,4,8], [2,4,6]
-  ];
-
-  cells.forEach((cell, index) => {
-    cell.addEventListener('click', () => handleClick(cell, index));
-  });
-
-  function handleClick(cell, index) {
-    if (!gameActive || board[index] !== '') return;
-
-    board[index] = currentPlayer;
-    cell.textContent = currentPlayer;
-    cell.classList.add('disabled');
-
-    if (checkWin()) {
-      statusText.textContent = `🎉 玩家 ${currentPlayer} 獲勝！`;
-      gameActive = false;
-      return;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius, start, end);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
     }
 
-    if (board.every(cell => cell !== '')) {
-      statusText.textContent = '😐 平手！';
-      gameActive = false;
-      return;
+    // sRGB 色域（三角形，視覺比例）
+    function drawSRGB() {
+      const points = [
+        { x: 0.64, y: 0.33 },
+        { x: 0.30, y: 0.60 },
+        { x: 0.15, y: 0.06 }
+      ];
+
+      function map(p) {
+        return {
+          x: cx + (p.x - 0.33) * radius * 1.25,
+          y: cy - (p.y - 0.33) * radius * 1.25
+        };
+      }
+
+      ctx.beginPath();
+      const p0 = map(points[0]);
+      ctx.moveTo(p0.x, p0.y);
+
+      points.slice(1).forEach(p => {
+        const m = map(p);
+        ctx.lineTo(m.x, m.y);
+      });
+
+      ctx.closePath();
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
     }
 
-    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-    statusText.textContent = `目前玩家：${currentPlayer}`;
-  }
+    // 外圈細邊框（Apple 很愛）
+    function drawOutline() {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(0,0,0,0.08)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
 
-  function checkWin() {
-    return winConditions.some(condition => {
-      return condition.every(index => board[index] === currentPlayer);
-    });
-  }
-
-  function resetGame() {
-    board.fill('');
-    gameActive = true;
-    currentPlayer = 'X';
-    statusText.textContent = '目前玩家：X';
-
-    cells.forEach(cell => {
-      cell.textContent = '';
-      cell.classList.remove('disabled');
-    });
-  }
-</script>
-
+    drawColorWheel();
+    drawSRGB();
+    drawOutline();
+  </script>
 </body>
 </html>
